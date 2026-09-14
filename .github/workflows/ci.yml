@@ -1,0 +1,43 @@
+name: Roommate Life CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Structural sanity check
+        run: python tools/sanity_check.py
+
+      - name: Godot parse check
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            barichello/godot-ci:4.7.2 \
+            godot --headless --path /workspace --editor --quit-after 2
+
+      - name: Export Web build
+        run: |
+          rm -rf build/web
+          mkdir -p build/web
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            barichello/godot-ci:4.7.2 \
+            godot --headless --export-release "Web" /workspace/build/web/index.html
+          test -f build/web/index.html
+          test -f build/web/index.pck
+          test -f build/web/index.wasm
+
+      - name: Upload Godot Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roommate-life-godot-web
+          path: build/web
+          if-no-files-found: error
